@@ -21,8 +21,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/microcosm-cc/bluemonday"
-	tgbotapi "gopkg.in/telegram-bot-api.v4"
 
 	"gopkg.in/yaml.v2"
 )
@@ -307,6 +307,7 @@ var tmpH *template.Template
 
 // Template addictional functions map
 var funcMap = template.FuncMap{
+	"str_Escape":             tgbotapi.EscapeText,
 	"str_FormatDate":         str_FormatDate,
 	"str_UpperCase":          strings.ToUpper,
 	"str_LowerCase":          strings.ToLower,
@@ -321,11 +322,7 @@ func telegramBot(bot *tgbotapi.BotAPI) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.GetUpdatesChan(u)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	updates := bot.GetUpdatesChan(u)
 	introduce := func(update tgbotapi.Update) {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Chat id is '%d'", update.Message.Chat.ID))
 		if cfg.DisableNotification {
@@ -342,8 +339,8 @@ func telegramBot(bot *tgbotapi.BotAPI) {
 			continue
 		}
 
-		if update.Message.NewChatMembers != nil && len(*update.Message.NewChatMembers) > 0 {
-			for _, member := range *update.Message.NewChatMembers {
+		if update.Message.NewChatMembers != nil && len(update.Message.NewChatMembers) > 0 {
+			for _, member := range update.Message.NewChatMembers {
 				if member.UserName == bot.Self.UserName && update.Message.Chat.Type == "group" {
 					introduce(update)
 				}
@@ -605,11 +602,9 @@ func SanitizeMsg(str string) string {
 }
 
 func POST_Handling(c *gin.Context) {
-	var msgtext string
 	var alerts Alerts
 
 	chatid, err := strconv.ParseInt(c.Param("chatid"), 10, 64)
-
 	log.Printf("Bot alert post: %d", chatid)
 
 	if err != nil {
@@ -621,7 +616,6 @@ func POST_Handling(c *gin.Context) {
 	}
 
 	binding.JSON.Bind(c.Request, &alerts)
-
 	s, err := json.Marshal(alerts)
 	if err != nil {
 		log.Print(err)
@@ -632,45 +626,35 @@ func POST_Handling(c *gin.Context) {
 	log.Printf("%s", s)
 	log.Println("+-----------------------------------------------------------+\n\n")
 
-	// Decide how format Text
-	if cfg.TemplatePath == "" {
-		msgtext = AlertFormatStandard(alerts)
-	} else {
-		msgtext = AlertFormatTemplate(alerts)
+	text := AlertFormatTemplate(alerts)
+	msg := tgbotapi.NewMessage(chatid, text)
+	msg.ParseMode = tgbotapi.ModeMarkdownV2
+
+	// Print in Log result message
+	log.Println("+---------------  F I N A L   M E S S A G E  ---------------+")
+	log.Println(text)
+	log.Println("+-----------------------------------------------------------+")
+
+	msg.DisableWebPagePreview = true
+	if cfg.DisableNotification {
+		msg.DisableNotification = true
 	}
-	for _, subString := range SplitString(msgtext, cfg.SplitMessageBytes) {
 
-		sanitizedString := SanitizeMsg(subString)
-
-		msg := tgbotapi.NewMessage(chatid, sanitizedString)
-		msg.ParseMode = tgbotapi.ModeHTML
-
-		// Print in Log result message
-		log.Println("+---------------  F I N A L   M E S S A G E  ---------------+")
-		log.Println(subString)
-		log.Println("+-----------------------------------------------------------+")
-
-		msg.DisableWebPagePreview = true
+	sendmsg, err := bot.Send(msg)
+	if err == nil {
+		c.String(http.StatusOK, "telegram msg sent.")
+	} else {
+		log.Printf("Error sending message: %s", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"err":     fmt.Sprint(err),
+			"message": sendmsg,
+			"srcmsg":  fmt.Sprint(text),
+		})
+		msg := tgbotapi.NewMessage(chatid, "Error sending message, checkout logs")
 		if cfg.DisableNotification {
 			msg.DisableNotification = true
 		}
-
-		sendmsg, err := bot.Send(msg)
-		if err == nil {
-			c.String(http.StatusOK, "telegram msg sent.")
-		} else {
-			log.Printf("Error sending message: %s", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"err":     fmt.Sprint(err),
-				"message": sendmsg,
-				"srcmsg":  fmt.Sprint(msgtext),
-			})
-			msg := tgbotapi.NewMessage(chatid, "Error sending message, checkout logs")
-			if cfg.DisableNotification {
-				msg.DisableNotification = true
-			}
-			bot.Send(msg)
-		}
+		bot.Send(msg)
 	}
 
 }

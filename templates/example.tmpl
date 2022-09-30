@@ -1,0 +1,38 @@
+*{{if ne .Status "firing" -}}✅{{- else -}}🔥{{- end -}}
+\[{{- .Status | str_UpperCase }}\] {{ str_Escape "MarkdownV2" .CommonLabels.alertname }}*
+
+{{- "\n" -}}
+
+{{- range .Alerts }}
+
+{{- if .Annotations.summary }}
+{{ str_Escape "MarkdownV2" .Annotations.summary -}} {{- "\n" -}}
+{{ end -}}
+{{- if .Annotations.message }}
+{{ str_Escape "MarkdownV2" .Annotations.message -}} {{- "\n" -}}
+{{ end -}}
+{{- if .Annotations.description }}
+{{ str_Escape "MarkdownV2" .Annotations.description -}} {{- "\n" -}}
+{{ end }}
+
+```
+datetime: {{ .StartsAt | str_FormatDate -}}
+{{- if .Labels.severity }}
+severity: {{ .Labels.severity -}}
+{{ end -}}
+{{- if .Labels.app_type }}
+app_type: {{ .Labels.app_type -}}
+{{ end -}}
+{{- if .Labels.cluster_name }}
+cluster_name: {{ .Labels.cluster_name -}}
+{{ end -}}
+{{- if .Labels.environment }}
+environment: {{ .Labels.environment -}}
+{{ end -}}
+{{- if .Labels.instance }}
+instance: {{ .Labels.instance -}}
+{{ end }}
+```
+
+[Link to Dashboard]({{- .Annotations.dashboard -}})
+{{end}}
