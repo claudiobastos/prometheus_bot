@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
+	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
 	github.com/microcosm-cc/bluemonday v1.0.16
 	gopkg.in/yaml.v2 v2.3.0
 )

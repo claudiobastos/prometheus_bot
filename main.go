@@ -22,8 +22,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joeshaw/envdecode"
 	"github.com/microcosm-cc/bluemonday"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -49,7 +49,7 @@ type Alert struct {
 }
 
 type Config struct {
-	TelegramToken       string `yaml:"telegram_token"`
+	TelegramToken       string `yaml:"telegram_token" env:"TELEGRAM_TOKEN"`
 	TemplatePath        string `yaml:"template_path"`
 	TimeZone            string `yaml:"time_zone"`
 	TimeOutFormat       string `yaml:"time_outdata"`
@@ -393,6 +393,10 @@ func main() {
 	err = yaml.Unmarshal(content, &cfg)
 	if err != nil {
 		log.Fatalf("Error parsing configuration file: %v", err)
+	}
+
+	if err := envdecode.Decode(&cfg); err != nil {
+		log.Fatal("Can't load config: ", err)
 	}
 
 	if *template_path != "" {
